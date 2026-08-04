@@ -7,8 +7,6 @@ import (
 	"time"
 )
 
-const upstreamResponseHeaderTimeout = 12 * time.Second
-
 // transportFactory builds the transport for one attempt together with the
 // recorder that captures which exit the forward proxy assigned to it.
 type transportFactory func(policy string) (http.RoundTripper, *slotRecorder)
@@ -31,7 +29,7 @@ func proxyTransportFactory(forwardProxy *url.URL, password string) transportFact
 			ForceAttemptHTTP2:     true,
 			DisableKeepAlives:     true,
 			TLSHandshakeTimeout:   15 * time.Second,
-			ResponseHeaderTimeout: upstreamResponseHeaderTimeout,
+			ResponseHeaderTimeout: 2 * time.Minute,
 			ExpectContinueTimeout: time.Second,
 		}, recorder
 	}
