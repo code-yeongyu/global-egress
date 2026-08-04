@@ -14,13 +14,14 @@ func TestHandler_accepts_every_public_free_model(t *testing.T) {
 			// Given
 			handler, err := newWithTransportFactory(
 				Options{Attempts: 1},
-				func(string) http.RoundTripper {
+				func(string) (http.RoundTripper, *slotRecorder) {
+					rec := recorderWithSlot("")
 					return roundTripFunc(func(request *http.Request) (*http.Response, error) {
 						if request.Header.Get("Authorization") != "" {
 							t.Fatal("public request forwarded an Authorization header")
 						}
 						return response(http.StatusOK, `{"choices":[]}`), nil
-					})
+					}), rec
 				},
 			)
 			if err != nil {
@@ -52,11 +53,12 @@ func TestHandler_rejects_paid_model_before_egress(t *testing.T) {
 	called := false
 	handler, err := newWithTransportFactory(
 		Options{Attempts: 1},
-		func(string) http.RoundTripper {
+		func(string) (http.RoundTripper, *slotRecorder) {
 			called = true
+			rec := recorderWithSlot("")
 			return roundTripFunc(func(*http.Request) (*http.Response, error) {
 				return response(http.StatusOK, `{}`), nil
-			})
+			}), rec
 		},
 	)
 	if err != nil {

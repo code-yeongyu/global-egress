@@ -20,6 +20,10 @@ func runZenPublic(ctx context.Context, args []string) error {
 	forwardProxy := fs.String("forward-proxy", "http://127.0.0.1:3128", "global-egress HTTP proxy URL")
 	passwordFile := fs.String("proxy-password-file", "", "file containing the global-egress proxy password")
 	attempts := fs.Int("attempts", 8, "maximum distinct egress attempts per request")
+	controlURL := fs.String("control-url", "http://127.0.0.1:8080", "global-egress control API URL")
+	controlTokenFile := fs.String("control-token-file", "", "file containing the control API token; empty disables exit reporting")
+	reportCooldown := fs.Duration("report-cooldown", 15*time.Minute,
+		"how long a rate-limited exit is cooled down for the Zen upstream")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -29,12 +33,31 @@ func runZenPublic(ctx context.Context, args []string) error {
 		return err
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	handler, err := zenproxy.New(zenproxy.Options{
+
+	// Reporting a rate-limited exit lets the pool cool that slot down for the
+	// Zen host, so the next caller does not spend an attempt on an exit this
+	// one already found exhausted. Without a control token there is nobody to
+	// tell, and the gateway keeps its previous retry-only behaviour.
+	options := zenproxy.Options{
 		ForwardProxy:  *forwardProxy,
 		ProxyPassword: password,
 		Attempts:      *attempts,
 		Logger:        logger,
-	})
+	}
+	if *controlTokenFile != "" {
+		controlToken, err := readZenProxyPassword(*controlTokenFile)
+		if err != nil {
+			return fmt.Errorf("zen-public: read control token: %w", err)
+		}
+		reporter := newZenExitReporter(*controlURL, controlToken, *reportCooldown, logger)
+		options.ReportExit = func(call zenproxy.ReportCall) {
+			reporter.report(call.Slot, call.Target, call.Reason)
+		}
+	} else {
+		logger.Warn("exit reporting disabled: no -control-token-file")
+	}
+
+	handler, err := zenproxy.New(options)
 	if err != nil {
 		return err
 	}
