@@ -15,6 +15,9 @@ func TestHandler_emulatesSSE_through_the_reliable_non_streaming_upstream(t *test
 		Options{Attempts: 1},
 		func(string) (http.RoundTripper, *slotRecorder) {
 			return roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				if encoding := request.Header.Get("Accept-Encoding"); encoding != "" {
+					t.Fatalf("upstream accept-encoding = %q, want empty", encoding)
+				}
 				if err := json.NewDecoder(request.Body).Decode(&upstreamBody); err != nil {
 					t.Fatalf("decode upstream request: %v", err)
 				}
@@ -35,6 +38,7 @@ func TestHandler_emulatesSSE_through_the_reliable_non_streaming_upstream(t *test
 			`{"model":"deepseek-v4-flash-free","messages":[{"role":"user","content":"hi"}],"stream":true,"stream_options":{"include_usage":true}}`,
 		)),
 	)
+	request.Header.Set("Accept-Encoding", "gzip, br")
 	writer := httptest.NewRecorder()
 
 	handler.ServeHTTP(writer, request)

@@ -151,7 +151,7 @@ func (h *Handler) serveChat(writer http.ResponseWriter, request *http.Request) {
 		strconv.FormatUint(h.requestSequence.Add(1), 36)
 	var lastErr error
 	for attempt := 1; attempt <= h.attempts; attempt++ {
-		response, transport, recorder, err := h.attempt(request, upstreamBody, policy)
+		response, transport, recorder, err := h.attempt(request, upstreamBody, policy, emulateStream)
 		if err != nil {
 			lastErr = err
 			closeIdleConnections(transport)
@@ -184,6 +184,7 @@ func (h *Handler) attempt(
 	inbound *http.Request,
 	body []byte,
 	policy string,
+	emulateStream bool,
 ) (*http.Response, http.RoundTripper, *slotRecorder, error) {
 	target := *h.upstream
 	target.Path = strings.TrimRight(h.upstream.Path, "/") + inbound.URL.Path
@@ -198,6 +199,9 @@ func (h *Handler) attempt(
 		return nil, nil, nil, fmt.Errorf("zenproxy: build upstream request: %w", err)
 	}
 	copyHeaders(outbound.Header, inbound.Header)
+	if emulateStream {
+		outbound.Header.Del("Accept-Encoding")
+	}
 	outbound.Header.Del("Authorization")
 	outbound.Header.Del("Proxy-Authorization")
 	outbound.Header.Set("User-Agent", gatewayUserAgent)

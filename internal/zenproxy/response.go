@@ -35,7 +35,9 @@ func (h *Handler) writeResponse(
 
 	if emulateStream && response.StatusCode >= 200 && response.StatusCode < 300 {
 		if err := writeEmulatedStream(writer, response); err != nil {
-			h.logger.Warn("emulate Zen stream", slog.String("error_type", fmt.Sprintf("%T", err)))
+			h.logger.Warn("emulate Zen stream",
+				slog.String("error_type", fmt.Sprintf("%T", err)),
+				slog.String("error", err.Error()))
 			http.Error(writer, "invalid upstream completion", http.StatusBadGateway)
 		}
 		return
