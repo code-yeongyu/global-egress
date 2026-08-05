@@ -140,13 +140,18 @@ func (h *Handler) serveChat(writer http.ResponseWriter, request *http.Request) {
 		http.Error(writer, "model is not a public Zen free model", http.StatusBadRequest)
 		return
 	}
+	upstreamBody, emulateStream, err := prepareUpstreamBody(body)
+	if err != nil {
+		http.Error(writer, "request body must be JSON", http.StatusBadRequest)
+		return
+	}
 
 	policy := "any=1;uniq=zen-" +
 		strconv.FormatInt(time.Now().UnixNano(), 36) + "-" +
 		strconv.FormatUint(h.requestSequence.Add(1), 36)
 	var lastErr error
 	for attempt := 1; attempt <= h.attempts; attempt++ {
-		response, transport, recorder, err := h.attempt(request, body, policy)
+		response, transport, recorder, err := h.attempt(request, upstreamBody, policy)
 		if err != nil {
 			lastErr = err
 			closeIdleConnections(transport)
@@ -164,7 +169,7 @@ func (h *Handler) serveChat(writer http.ResponseWriter, request *http.Request) {
 			continue
 		}
 		writer.Header().Set("X-Zen-Egress-Attempts", strconv.Itoa(attempt))
-		h.writeResponse(writer, response, transport)
+		h.writeResponse(writer, response, transport, emulateStream)
 		return
 	}
 	// The message matters more than the type here: without it an egress

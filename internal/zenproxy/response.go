@@ -24,6 +24,7 @@ func (h *Handler) writeResponse(
 	writer http.ResponseWriter,
 	response *http.Response,
 	transport http.RoundTripper,
+	emulateStream bool,
 ) {
 	defer closeIdleConnections(transport)
 	defer func() {
@@ -32,6 +33,13 @@ func (h *Handler) writeResponse(
 		}
 	}()
 
+	if emulateStream && response.StatusCode >= 200 && response.StatusCode < 300 {
+		if err := writeEmulatedStream(writer, response); err != nil {
+			h.logger.Warn("emulate Zen stream", slog.String("error_type", fmt.Sprintf("%T", err)))
+			http.Error(writer, "invalid upstream completion", http.StatusBadGateway)
+		}
+		return
+	}
 	copyHeaders(writer.Header(), response.Header)
 	writer.WriteHeader(response.StatusCode)
 	destination := io.Writer(writer)
